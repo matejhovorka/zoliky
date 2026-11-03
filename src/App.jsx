@@ -6,17 +6,12 @@ import RoundEndModal from './components/RoundEndModal.jsx';
 import Chat from './components/Chat.jsx';
 import RulesModal from './components/RulesModal.jsx';
 import { isSoundMuted, toggleMute } from './utils/sound.js';
-import { Play, LogIn, PlusCircle, HelpCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import { Play, LogIn, PlusCircle, HelpCircle, AlertCircle } from 'lucide-react';
 
-const getInitialServerUrl = () => {
-  if (typeof window === 'undefined') return '';
-  return localStorage.getItem('zoliky_custom_server_url') ||
-    window.__ZOLIKY_SERVER_URL__ ||
-    import.meta.env.VITE_SERVER_URL ||
-    '';
-};
-
-const SERVER_URL = getInitialServerUrl();
+const SERVER_URL =
+  (typeof window !== 'undefined' && window.__ZOLIKY_SERVER_URL__) ||
+  import.meta.env.VITE_SERVER_URL ||
+  '';
 
 const socket = io(SERVER_URL || '/', {
   autoConnect: true,
@@ -34,37 +29,9 @@ export default function App() {
   const [isMuted, setIsMuted] = useState(isSoundMuted());
   const [errorMsg, setErrorMsg] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isConnected, setIsConnected] = useState(socket.connected);
-  const [connectError, setConnectError] = useState(null);
-  const [showServerModal, setShowServerModal] = useState(false);
-  const [customServerInput, setCustomServerInput] = useState(SERVER_URL);
 
   // Check URL query params for ?room=ABCD
   const [hasInviteFromUrl, setHasInviteFromUrl] = useState(false);
-
-  useEffect(() => {
-    const onConnect = () => {
-      setIsConnected(true);
-      setConnectError(null);
-    };
-    const onDisconnect = () => {
-      setIsConnected(false);
-    };
-    const onConnectError = (err) => {
-      setIsConnected(false);
-      setConnectError(err?.message || 'Chyba připojení');
-    };
-
-    socket.on('connect', onConnect);
-    socket.on('disconnect', onDisconnect);
-    socket.on('connect_error', onConnectError);
-
-    return () => {
-      socket.off('connect', onConnect);
-      socket.off('disconnect', onDisconnect);
-      socket.off('connect_error', onConnectError);
-    };
-  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -129,9 +96,9 @@ export default function App() {
     const timeoutTimer = setTimeout(() => {
       if (!finished) {
         setIsLoading(false);
-        setErrorMsg(`Herní server (${SERVER_URL || window.location.origin}) neodpovídá. Zkontrolujte, zda na Renderu svítí zeleně "Live" a zda je zadaná správná URL adresa serveru.`);
+        setErrorMsg('Nepodařilo se připojit k hernímu serveru. Zkontrolujte prosím připojení k internetu a zkuste to znovu.');
       }
-    }, 6000);
+    }, 8000);
 
     socket.emit('room:create', { playerName: playerName.trim() }, (res) => {
       finished = true;
@@ -168,9 +135,9 @@ export default function App() {
     const timeoutTimer = setTimeout(() => {
       if (!finished) {
         setIsLoading(false);
-        setErrorMsg(`Herní server (${SERVER_URL || window.location.origin}) neodpovídá. Zkontrolujte, zda na Renderu svítí zeleně "Live" a zda je zadaná správná URL adresa serveru.`);
+        setErrorMsg('Nepodařilo se připojit k hernímu serveru. Zkontrolujte prosím připojení k internetu a zkuste to znovu.');
       }
-    }, 6000);
+    }, 8000);
 
     socket.emit('room:join', {
       roomCode: roomCodeInput.toUpperCase().trim(),
@@ -417,81 +384,7 @@ export default function App() {
             <HelpCircle className="w-4 h-4" />
             <span>Jak se hrají Žolíky? Zobrazit pravidla</span>
           </button>
-
-          {/* Server status & quick config */}
-          <div className="mt-4 pt-3 border-t border-stone-800/60 w-full flex items-center justify-center gap-2 text-[11px] text-stone-400">
-            <span className={`w-2 h-2 rounded-full shrink-0 ${isConnected ? 'bg-emerald-400 shadow-sm shadow-emerald-400' : 'bg-red-500 animate-ping'}`} />
-            <span className="truncate">
-              {isConnected ? 'Server připojen' : (connectError ? 'Nelze se spojit se serverem' : 'Připojování k serveru...')}
-            </span>
-            <button
-              type="button"
-              onClick={() => setShowServerModal(true)}
-              className="text-amber-400 hover:text-amber-200 underline cursor-pointer shrink-0 ml-1 font-semibold"
-            >
-              (Nastavit server)
-            </button>
-          </div>
         </div>
-
-        {/* Server Config Modal */}
-        {showServerModal && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-stone-900 border border-stone-700 rounded-3xl p-6 max-w-md w-full shadow-2xl text-left">
-              <div className="flex items-center justify-between pb-3 mb-4 border-b border-stone-800">
-                <h3 className="font-bold text-base text-amber-400">Nastavení herního serveru (Backend)</h3>
-                <button onClick={() => setShowServerModal(false)} className="text-stone-400 hover:text-white">✕</button>
-              </div>
-
-              <p className="text-xs text-stone-300 mb-4">
-                Pokud máte web nahraný na svém FTP hostingu, zadejte sem veřejnou URL adresu herního serveru z vašeho Render dashboardu (např. <code className="text-amber-300">https://ceske-zoliky.onrender.com</code>).
-              </p>
-
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-bold text-stone-400 uppercase tracking-wider mb-1">
-                    URL adresa herního serveru
-                  </label>
-                  <input
-                    type="url"
-                    placeholder="https://vase-jmeno.onrender.com"
-                    value={customServerInput}
-                    onChange={(e) => setCustomServerInput(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-stone-950 border border-stone-700 rounded-xl text-stone-100 placeholder-stone-600 focus:outline-none focus:border-amber-400 font-mono text-xs"
-                  />
-                  <div className="text-[10px] text-stone-500 mt-1">
-                    Aktuální spojení: {SERVER_URL || 'výchozí stejná doména ( / )'}
-                  </div>
-                </div>
-
-                <div className="flex gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      let url = customServerInput.trim();
-                      if (url.endsWith('/')) url = url.slice(0, -1);
-                      localStorage.setItem('zoliky_custom_server_url', url);
-                      window.location.reload();
-                    }}
-                    className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 font-bold text-white text-xs rounded-xl transition cursor-pointer"
-                  >
-                    Uložit a připojit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      localStorage.removeItem('zoliky_custom_server_url');
-                      window.location.reload();
-                    }}
-                    className="px-3 py-2.5 bg-stone-800 hover:bg-stone-700 font-medium text-stone-400 hover:text-stone-200 text-xs rounded-xl transition cursor-pointer"
-                  >
-                    Obnovit výchozí
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         <RulesModal isOpen={isRulesOpen} onClose={() => setIsRulesOpen(false)} />
       </div>
