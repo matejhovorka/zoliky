@@ -1,0 +1,8 @@
+node_modules
+dist
+bin
+public_url.txt
+.git
+.DS_Store
+scratch
+
