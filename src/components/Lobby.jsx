@@ -144,13 +144,27 @@ export default function Lobby({
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+          <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full md:w-auto">
+            {isHost && (
+              <button
+                onClick={onStartGame}
+                disabled={!canStart}
+                className={`w-full sm:w-auto px-6 py-3 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition shadow-lg ${
+                  canStart
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white shadow-emerald-900/40 cursor-pointer animate-pulse'
+                    : 'bg-stone-800 text-stone-500 cursor-not-allowed border border-stone-700/50'
+                }`}
+              >
+                <Play className="w-4 h-4 fill-current" />
+                <span>SPUSTIT HRU</span>
+              </button>
+            )}
             <button
               onClick={handleCopyLink}
               className="w-full sm:w-auto px-5 py-3 bg-amber-600 hover:bg-amber-500 active:scale-95 text-white font-bold text-sm rounded-2xl flex items-center justify-center gap-2 transition shadow-lg shadow-amber-900/30"
             >
               {copied ? <Check className="w-4 h-4 text-white" /> : <Copy className="w-4 h-4" />}
-              {copied ? 'Odkaz zkopírován!' : 'Kopírovat odkaz pro kamarády'}
+              {copied ? 'Odkaz zkopírován!' : 'Kopírovat odkaz'}
             </button>
           </div>
         </div>
