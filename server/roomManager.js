@@ -673,6 +673,13 @@ export class RoomManager {
       room.gameState.drawnFromDiscardCard = null;
       this.addLog(room, `${currentPlayer.name} si dobral(a) kartu z talónu.`);
     } else if (source === 'discard') {
+      const turnsPlayed = currentPlayer.turnsCount || 0;
+      if (turnsPlayed < 3) {
+        return {
+          success: false,
+          error: `Kartu odhozenou soupeřem lze brát až po 3. kole! (Váš odehraný počet kol: ${turnsPlayed} z 3).`
+        };
+      }
       if (room.gameState.discardPile.length === 0) {
         return { success: false, error: 'Odhazovací balíček je prázdný.' };
       }
@@ -1001,6 +1008,15 @@ export class RoomManager {
         success: false,
         error: 'Nelze přiložit všechny zbývající karty! V ruce vám musí zůstat alespoň 1 karta na závěrečné odhození pro ukončení tahu / zavření.'
       };
+    }
+
+    // If player is attempting to lay off 1 card that can swap a Joker in this meld,
+    // automatically execute swapJoker so the player gets the Joker in hand!
+    if (cards.length === 1) {
+      const swappableJoker = targetMeld.cards.find(c => c.isJoker && canSwapJoker(targetMeld, cards[0], c.id).valid);
+      if (swappableJoker) {
+        return this.swapJoker(code, playerId, targetMeld.id, swappableJoker.id, cards[0].id);
+      }
     }
 
     const check = canLayOff(targetMeld, cards);

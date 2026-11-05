@@ -4,3 +4,4 @@
 // Pokud necháte prázdné "", hra se pokusí připojit na stejnou doménu.
 
 window.__ZOLIKY_SERVER_URL__ = "";
+

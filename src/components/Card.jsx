@@ -20,9 +20,9 @@ export default function Card({
   // Size classes
   const sizeClasses = {
     sm: 'w-10 h-14 rounded-md',
-    md: 'w-14 h-20 sm:w-16 sm:h-24 rounded-lg',
-    lg: 'w-16 h-24 sm:w-20 sm:h-28 rounded-xl'
-  }[size] || 'w-14 h-20 rounded-lg';
+    md: 'w-13 h-18 sm:w-14 sm:h-20 rounded-lg',
+    lg: 'w-15 h-22 sm:w-18 sm:h-26 rounded-xl'
+  }[size] || 'w-13 h-18 sm:w-14 sm:h-20 rounded-lg';
 
   // Card Back
   if (isBack) {

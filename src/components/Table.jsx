@@ -231,6 +231,13 @@ export default function Table({
     if (!isMyTurn) return showError('Nejste na tahu.');
     if (turnPhase !== 'draw') return showError('Kartu jste si již dobrali.');
 
+    if (source === 'discard') {
+      const turnsPlayed = myPlayer?.turnsCount || 0;
+      if (turnsPlayed < 3) {
+        return showError(`Kartu odhozenou soupeřem lze brát až po 3. kole! (Váš odehraný počet kol: ${turnsPlayed} z 3).`);
+      }
+    }
+
     onDraw(source, (res) => {
       if (!res.success) {
         showError(res.error);
@@ -275,6 +282,14 @@ export default function Table({
     if (turnPhase !== 'play_or_discard') return showError('Nejprve si musíte dobrat kartu.');
     if (!myPlayer?.hasOpened) return showError('Přikládat můžete až po svém prvním vyložení.');
     if (selectedCards.length === 0) return showError('Vyberte nejprve kartu/karty ze své ruky k přiložení.');
+
+    // If player selected 1 card that can swap a joker in this meld, automatically perform swap!
+    if (selectedCards.length === 1) {
+      const swappableJoker = tableMeld.cards.find(c => c.isJoker && canSwapJoker(tableMeld, selectedCards[0], c.id).valid);
+      if (swappableJoker) {
+        return handleSwapJoker(tableMeld, swappableJoker);
+      }
+    }
 
     if ((myPlayer?.hand?.length || 0) - selectedCards.length < 1) {
       return showError('Nelze přiložit všechny zbývající karty! V ruce vám musí zůstat alespoň 1 karta na závěrečné odhození pro ukončení tahu / zavření.');
@@ -355,9 +370,9 @@ export default function Table({
   };
 
   return (
-    <div className="relative w-full min-h-screen flex flex-col justify-between felt-table select-none pb-2">
+    <div className="relative w-full h-screen h-[100dvh] max-h-screen overflow-hidden flex flex-col justify-between felt-table select-none">
       {/* Top Bar: Room Code, Turn Info, Sound & Rules */}
-      <div className="w-full px-3 py-2 bg-stone-950/70 border-b border-stone-800/80 flex items-center justify-between text-xs sm:text-sm">
+      <div className="shrink-0 w-full px-3 py-1.5 bg-stone-950/70 border-b border-stone-800/80 flex items-center justify-between text-xs sm:text-sm">
         <div className="flex items-center gap-2 sm:gap-3">
           <span className="font-mono font-black text-amber-400 bg-stone-900 px-2 py-0.5 rounded-lg border border-stone-700">
             {room?.code}
@@ -457,30 +472,30 @@ export default function Table({
       )}
 
       {/* Opponents Area (Top of Table) */}
-      <div className="w-full px-3 py-2 flex items-center justify-around gap-2 sm:gap-4 overflow-x-auto no-scrollbar">
+      <div className="shrink-0 w-full px-2 py-1 flex items-center justify-around gap-2 sm:gap-3 overflow-x-auto no-scrollbar">
         {opponents.map((opp) => {
           const isOppTurn = opp.id === currentPlayer?.id;
           return (
             <div
               key={opp.id}
-              className={`flex items-center gap-2 px-3 py-2 rounded-2xl border transition-all ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 py-1 sm:py-1.5 rounded-2xl border transition-all ${
                 isOppTurn
                   ? 'bg-amber-950/60 border-amber-400 ring-2 ring-amber-400/50 shadow-lg'
                   : 'bg-stone-950/40 border-stone-800/80'
               }`}
             >
               <div className="relative">
-                <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-stone-800 border border-stone-700 flex items-center justify-center text-base sm:text-lg">
+                <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-stone-800 border border-stone-700 flex items-center justify-center text-sm sm:text-base">
                   {opp.isBot ? '🤖' : '👤'}
                 </div>
                 {isOppTurn && (
-                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full border-2 border-stone-900 animate-ping" />
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-stone-900 animate-ping" />
                 )}
               </div>
 
               <div className="text-left">
                 <div className="text-xs sm:text-sm font-bold text-stone-200 flex items-center gap-1">
-                  <span className="truncate max-w-[80px] sm:max-w-[110px]">{opp.name}</span>
+                  <span className="truncate max-w-[70px] sm:max-w-[100px]">{opp.name}</span>
                 </div>
                 <div className="flex items-center gap-1.5 text-[10px] sm:text-xs">
                   <span className="text-stone-400">🃏 {opp.cardCount} karet</span>
@@ -505,9 +520,9 @@ export default function Table({
       </div>
 
       {/* Center Table: Talon (Draw pile), Discard pile, & Table Melds */}
-      <div className="flex-1 w-full max-w-6xl mx-auto px-3 py-2 flex flex-col justify-center gap-4">
+      <div className="flex-1 min-h-0 w-full max-w-6xl mx-auto px-2 sm:px-3 py-1 flex flex-col justify-between gap-1 sm:gap-2 overflow-hidden">
         {/* Draw & Discard Piles Center Bar */}
-        <div className="flex items-center justify-center gap-6 sm:gap-12 my-2">
+        <div className="shrink-0 flex items-center justify-center gap-6 sm:gap-10 my-1">
           {/* Talon (Draw Pile) */}
           <div className="flex flex-col items-center">
             <div
@@ -524,7 +539,7 @@ export default function Table({
                 {gameState?.talonCount || 0} karet
               </div>
             </div>
-            <span className="mt-4 text-[11px] font-bold text-stone-300 tracking-wide uppercase">
+            <span className="mt-3 text-[11px] font-bold text-stone-300 tracking-wide uppercase">
               Talón (Dobrat)
             </span>
           </div>
@@ -540,7 +555,7 @@ export default function Table({
                 }
               }}
               className={`relative cursor-pointer transition-transform duration-150 ${
-                isMyTurn && turnPhase === 'draw'
+                isMyTurn && turnPhase === 'draw' && (myPlayer?.turnsCount || 0) >= 3
                   ? 'hover:scale-105 active:scale-95 ring-4 ring-amber-400 rounded-xl shadow-xl shadow-amber-500/30'
                   : isMyTurn && turnPhase === 'play_or_discard' && selectedCards.length === 1
                   ? 'hover:scale-105 active:scale-95 ring-4 ring-red-500 rounded-xl shadow-xl shadow-red-500/30'
@@ -548,14 +563,14 @@ export default function Table({
               }`}
               title={
                 turnPhase === 'draw'
-                  ? 'Vzít vrchní kartu z odhozu'
+                  ? ((myPlayer?.turnsCount || 0) >= 3 ? 'Vzít vrchní kartu z odhozu' : 'Kartu z odhozu lze brát až po 3. kole')
                   : 'Klikněte pro odhození vybrané karty'
               }
             >
               {gameState?.discardTop ? (
                 <Card card={gameState.discardTop} size="md" />
               ) : (
-                <div className="w-14 h-20 sm:w-16 sm:h-24 border-2 border-dashed border-stone-600/70 rounded-xl flex items-center justify-center text-stone-500 text-xs">
+                <div className="w-13 h-18 sm:w-14 sm:h-20 border-2 border-dashed border-stone-600/70 rounded-xl flex items-center justify-center text-stone-500 text-xs">
                   Prázdno
                 </div>
               )}
@@ -563,19 +578,26 @@ export default function Table({
                 {gameState?.discardCount || 0} karet
               </div>
             </div>
-            <span className="mt-4 text-[11px] font-bold text-stone-300 tracking-wide uppercase">
-              {isMyTurn && turnPhase === 'play_or_discard' && selectedCards.length === 1 ? (
-                <span className="text-red-400 animate-pulse font-extrabold">Zahodit sem!</span>
-              ) : (
-                'Odhoz'
+            <div className="mt-3 flex flex-col items-center leading-tight">
+              <span className="text-[11px] font-bold text-stone-300 tracking-wide uppercase">
+                {isMyTurn && turnPhase === 'play_or_discard' && selectedCards.length === 1 ? (
+                  <span className="text-red-400 animate-pulse font-extrabold">Zahodit sem!</span>
+                ) : (
+                  'Odhoz'
+                )}
+              </span>
+              {(myPlayer?.turnsCount || 0) < 3 && (
+                <span className="text-[9px] text-amber-400/80 font-medium tracking-normal lowercase">
+                  (brát až po 3. kole)
+                </span>
               )}
-            </span>
+            </div>
           </div>
         </div>
 
         {/* Warning & Return Button if player took card from discard */}
         {isMyTurn && turnPhase === 'play_or_discard' && hasDrawnDiscardInHand && (
-          <div className="w-full max-w-xl mx-auto px-4 py-2.5 bg-amber-950/90 border-2 border-amber-500 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xl animate-fade-in text-center sm:text-left">
+          <div className="shrink-0 w-full max-w-xl mx-auto px-3 py-1.5 bg-amber-950/90 border-2 border-amber-500 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-2 shadow-2xl animate-fade-in text-center sm:text-left">
             <div className="text-xs text-amber-200 font-semibold flex items-center gap-1.5">
               <span className="text-base">⚠️</span>
               <span>
@@ -584,17 +606,17 @@ export default function Table({
             </div>
             <button
               onClick={handleReturnDiscard}
-              className="px-3 py-1.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 active:scale-95 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center gap-1.5 shrink-0 cursor-pointer"
+              className="px-2.5 py-1 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 active:scale-95 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center gap-1.5 shrink-0 cursor-pointer"
             >
               <span>↩</span>
-              <span>Vrátit do odhozu a líznout z talónu</span>
+              <span>Vrátit a líznout z talónu</span>
             </button>
           </div>
         )}
 
         {/* Table Melds (Vyložené kombinace na stole) */}
-        <div className="w-full bg-black/25 border border-white/10 rounded-2xl p-3 min-h-[140px] max-h-[36vh] overflow-y-auto">
-          <div className="flex items-center justify-between mb-2 px-1">
+        <div className="flex-1 min-h-0 w-full bg-black/25 border border-white/10 rounded-2xl p-2 sm:p-2.5 overflow-y-auto">
+          <div className="flex items-center justify-between mb-1.5 px-1 shrink-0">
             <div className="text-xs font-bold text-amber-300/80 flex items-center gap-1.5 uppercase tracking-wider">
               <Sparkles className="w-4 h-4 text-amber-400" />
               <span>Kombinace na stole ({gameState?.tableMelds?.length || 0})</span>
@@ -607,17 +629,17 @@ export default function Table({
           </div>
 
           {gameState?.tableMelds?.length === 0 ? (
-            <div className="h-24 flex items-center justify-center text-xs text-stone-400/60 font-medium">
+            <div className="h-16 flex items-center justify-center text-xs text-stone-400/60 font-medium">
               Zatím žádný hráč nevyložil karty na stůl.
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-2.5">
               {gameState?.tableMelds?.map((meld) => (
                 <div
                   key={meld.id}
-                  className="bg-stone-950/70 border border-stone-800 rounded-xl p-2.5 flex flex-col justify-between shadow-md"
+                  className="bg-stone-950/70 border border-stone-800 rounded-xl p-2 flex flex-col justify-between shadow-md"
                 >
-                  <div className="flex items-center justify-between text-[11px] text-stone-400 mb-1.5">
+                  <div className="flex items-center justify-between text-[11px] text-stone-400 mb-1">
                     <span className="font-bold text-stone-200">
                       {meld.type === 'sequence' ? 'Postupka' : 'Skupina'} ({meld.ownerName})
                     </span>
@@ -637,17 +659,33 @@ export default function Table({
                   <div className="flex items-center gap-1 overflow-x-auto pb-1 no-scrollbar">
                     {meld.cards.map((c) => {
                       const isJoker = c.isJoker;
+                      const canSwapThisJoker = isJoker && isMyTurn && myPlayer?.hasOpened && selectedCards.length === 1 && canSwapJoker(meld, selectedCards[0], c.id).valid;
                       return (
-                        <div key={c.id} className="relative group">
+                        <div
+                          key={c.id}
+                          onClick={() => {
+                            if (canSwapThisJoker) {
+                              handleSwapJoker(meld, c);
+                            }
+                          }}
+                          className={`relative group ${canSwapThisJoker ? 'cursor-pointer ring-2 ring-amber-400 rounded-lg animate-pulse' : ''}`}
+                        >
                           <Card card={c} size="sm" />
                           {/* Swap Joker button if applicable */}
                           {isJoker && isMyTurn && myPlayer?.hasOpened && selectedCards.length === 1 && (
                             <button
-                              onClick={() => handleSwapJoker(meld, c)}
-                              className="absolute -top-1.5 -right-1.5 bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-[9px] px-1 py-0.5 rounded shadow-lg animate-bounce"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSwapJoker(meld, c);
+                              }}
+                              className={`absolute -top-2 -right-2 px-1.5 py-0.5 rounded-md font-black text-[9px] shadow-xl z-20 transition ${
+                                canSwapThisJoker
+                                  ? 'bg-amber-400 hover:bg-amber-300 text-stone-950 animate-bounce ring-2 ring-white cursor-pointer'
+                                  : 'bg-stone-800 text-stone-400 opacity-60 cursor-not-allowed'
+                              }`}
                               title="Vyměnit žolíka za vybranou kartu z ruky"
                             >
-                              Vyměnit!
+                              Vyměnit! 🃏
                             </button>
                           )}
                         </div>
@@ -662,24 +700,24 @@ export default function Table({
       </div>
 
       {/* Bottom Area: Player's Hand, Action Buttons & Sorting */}
-      <div className="w-full bg-stone-950/90 border-t border-stone-800/80 px-2 sm:px-4 pt-2 pb-3 shadow-2xl flex flex-col items-center">
+      <div className="shrink-0 w-full bg-stone-950/95 border-t border-stone-800/80 px-2 sm:px-4 pt-1.5 pb-2 sm:pb-3 shadow-2xl flex flex-col items-center">
         {/* Helper Banner / Turn action prompt */}
-        <div className="w-full max-w-4xl flex items-center justify-between mb-2 text-xs">
-          <div className="flex items-center gap-2">
+        <div className="w-full max-w-4xl flex items-center justify-between mb-1 text-xs">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <span className="font-bold text-amber-400">Tvoje ruka</span>
-            <span className="text-stone-400">({myPlayer?.hand?.length || 0} karet)</span>
+            <span className="text-stone-400 text-[11px] sm:text-xs">({myPlayer?.hand?.length || 0} karet)</span>
             {myPlayer?.hasOpened ? (
-              <span className="text-[10px] px-2 py-0.5 bg-emerald-950 text-emerald-300 border border-emerald-800 rounded-full font-bold">
+              <span className="text-[10px] px-2 py-0.2 bg-emerald-950 text-emerald-300 border border-emerald-800 rounded-full font-bold">
                 ✓ Vyloženo
               </span>
             ) : (
-              <div className="flex items-center gap-1.5">
-                {(myPlayer?.turnsCount || 0) < ((settings.minTurnsToMeld ?? 4) === 4 ? 3 : (settings.minTurnsToMeld === 3 ? 2 : 0)) ? (
-                  <span className="text-[10px] px-2 py-0.5 bg-red-950/80 text-red-300 border border-red-700/60 rounded-full font-bold flex items-center gap-1">
-                    🔒 Vykládání až po 3. kole ({myPlayer?.turnsCount || 0}/{(settings.minTurnsToMeld ?? 4) === 4 ? 3 : (settings.minTurnsToMeld === 3 ? 2 : 0)} kol)
+              <div className="flex items-center gap-1">
+                {(myPlayer?.turnsCount || 0) < 3 ? (
+                  <span className="text-[10px] px-2 py-0.2 bg-red-950/80 text-red-300 border border-red-700/60 rounded-full font-bold flex items-center gap-1">
+                    🔒 Vykládání až po 3. kole ({myPlayer?.turnsCount || 0}/3 kol)
                   </span>
                 ) : (
-                  <span className="text-[10px] px-2 py-0.5 bg-stone-800 text-amber-300 rounded-full font-semibold">
+                  <span className="text-[10px] px-2 py-0.2 bg-stone-800 text-amber-300 rounded-full font-semibold">
                     Podmínka: min. {settings.minPoints || 42} b
                     {settings.requirePureSequence ? ' + čistá postupka' : ''}
                   </span>
@@ -692,7 +730,7 @@ export default function Table({
           <div className="flex items-center gap-1">
             <button
               onClick={() => setSortMode('suit')}
-              className={`px-2 py-1 rounded-lg text-[11px] font-semibold transition ${
+              className={`px-2 py-0.5 rounded-lg text-[10px] sm:text-[11px] font-semibold transition ${
                 sortMode === 'suit'
                   ? 'bg-amber-600 text-white shadow'
                   : 'bg-stone-800 text-stone-400 hover:text-stone-200'
@@ -702,7 +740,7 @@ export default function Table({
             </button>
             <button
               onClick={() => setSortMode('rank')}
-              className={`px-2 py-1 rounded-lg text-[11px] font-semibold transition ${
+              className={`px-2 py-0.5 rounded-lg text-[10px] sm:text-[11px] font-semibold transition ${
                 sortMode === 'rank'
                   ? 'bg-amber-600 text-white shadow'
                   : 'bg-stone-800 text-stone-400 hover:text-stone-200'
@@ -714,7 +752,7 @@ export default function Table({
         </div>
 
         {/* Hand Cards Container */}
-        <div className="w-full max-w-5xl overflow-x-auto py-3 px-2 no-scrollbar flex items-center justify-start sm:justify-center gap-1 sm:gap-2">
+        <div className="w-full max-w-5xl overflow-x-auto py-1 px-1 sm:px-2 no-scrollbar flex items-center justify-start sm:justify-center gap-1 sm:gap-1.5">
           {sortedHand.map((card) => {
             const isSelected = selectedCardIds.has(card.id);
             const isLastDrawn = card.id === myPlayer?.lastDrawnCardId;
@@ -739,7 +777,7 @@ export default function Table({
         </div>
 
         {/* Actions Bar & Selection Status */}
-        <div className="w-full max-w-4xl mt-2 flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-stone-800/60">
+        <div className="w-full max-w-4xl mt-1 flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-stone-800/60">
           {/* Selected cards info */}
           <div className="text-xs text-stone-300 flex items-center gap-2">
             <span className="font-semibold">{selectionAnalysis.text}</span>
@@ -764,12 +802,12 @@ export default function Table({
           </div>
 
           {/* Main Action Buttons */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {/* Meld Button */}
             <button
               onClick={handleMeld}
               disabled={!isMyTurn || turnPhase !== 'play_or_discard' || !selectionAnalysis.canMeld}
-              className={`px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition ${
+              className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition ${
                 isMyTurn && turnPhase === 'play_or_discard' && selectionAnalysis.canMeld
                   ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white shadow-lg shadow-emerald-900/40 cursor-pointer'
                   : 'bg-stone-800/80 text-stone-500 cursor-not-allowed'
@@ -783,7 +821,7 @@ export default function Table({
             <button
               onClick={handleDiscard}
               disabled={!isMyTurn || turnPhase !== 'play_or_discard' || selectedCards.length !== 1}
-              className={`px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition ${
+              className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition ${
                 canWinWithKeptJoker
                   ? 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-stone-950 font-black shadow-xl shadow-amber-500/50 active:scale-95 animate-pulse cursor-pointer border-2 border-white/60'
                   : isMyTurn && turnPhase === 'play_or_discard' && selectedCards.length === 1

@@ -393,7 +393,7 @@ export default function App() {
 
   // Active Game or Lobby View
   return (
-    <div className="min-h-screen bg-stone-950 text-stone-100">
+    <div className="h-screen h-[100dvh] max-h-screen overflow-hidden bg-stone-950 text-stone-100 flex flex-col">
       {room.status === 'lobby' ? (
         <Lobby
           room={room}

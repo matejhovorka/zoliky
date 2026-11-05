@@ -174,17 +174,15 @@ export function decideBotTurn(botPlayer, gameState, roomSettings) {
 
   let drawChoice = 'talon'; // 'talon' or 'discard'
 
-  // Step 1: Check whether drawing from discard is beneficial
-  if (topDiscard) {
+  // Step 1: Check whether drawing from discard is beneficial (only allowed after round 3)
+  const turnsPlayed = botPlayer.turnsCount || 0;
+  if (topDiscard && turnsPlayed >= 3) {
     const testHandWithDiscard = [...hand, topDiscard];
     const potGroups = findPotentialGroups(testHandWithDiscard);
     const potSeqs = findPotentialSequences(testHandWithDiscard);
     const allCombos = findDisjointMelds([...potSeqs, ...potGroups]);
 
-    const minTurns = roomSettings?.minTurnsToMeld ?? 3;
-    const turnsPlayed = botPlayer.turnsCount || 0;
-    const requiredTurns = minTurns === 4 ? 3 : (minTurns === 3 ? 2 : 0);
-    const canOpenThisTurn = turnsPlayed >= requiredTurns;
+    const canOpenThisTurn = true; // turnsPlayed >= 3 already checked above
 
     if (!hasOpened && canOpenThisTurn) {
       // Must be able to open using topDiscard

@@ -309,10 +309,26 @@ export function validateOpeningMelds(melds, options = {}) {
  * newCards: array of cards from player's hand to add
  */
 export function canLayOff(tableMeld, newCards) {
-  const combinedCards = [...tableMeld.cards, ...newCards];
   if (tableMeld.type === 'sequence') {
+    // If tableMeld has a joker, check if any of newCards matches the joker's represented card
+    const jokersInMeld = tableMeld.cards.filter(c => c.isJoker);
+    for (const joker of jokersInMeld) {
+      if (joker.representedRank && joker.representedSuit) {
+        const matchesJoker = newCards.some(
+          c => !c.isJoker && c.rank === joker.representedRank && c.suit === joker.representedSuit
+        );
+        if (matchesJoker) {
+          return {
+            valid: false,
+            error: `Tato karta (${joker.representedRank}) odpovídá žolíkovi v této postupce. Žolíka je potřeba vyměnit!`
+          };
+        }
+      }
+    }
+    const combinedCards = [...tableMeld.cards, ...newCards];
     return validateSequence(combinedCards);
   } else if (tableMeld.type === 'group') {
+    const combinedCards = [...tableMeld.cards, ...newCards];
     return validateGroup(combinedCards);
   }
   return { valid: false, error: 'Neznámý typ kombinace.' };
