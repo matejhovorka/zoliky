@@ -49,13 +49,13 @@ export default function RoundEndModal({ room, currentUserId, onNextRound, onNewR
 
         {gameState.hasKeptJoker && (
           <div className="mt-2 inline-flex items-center gap-1.5 px-4 py-1.5 bg-gradient-to-r from-amber-500/20 via-yellow-500/30 to-amber-500/20 border-2 border-amber-400 text-amber-200 rounded-full text-xs sm:text-sm font-black tracking-wide shadow-lg shadow-amber-500/20 animate-pulse">
-            <span>🃏</span> Žolík přenesen do dalšího kola pro {winner?.name}! <span>★</span>
+            <span>🃏</span> {gameState.keptJokersCount > 1 ? `${gameState.keptJokersCount} žolíci přeneseni` : 'Žolík přenesen'} do dalšího kola pro {winner?.name}! <span>★</span>
           </div>
         )}
 
         <p className="mt-2 text-stone-300 text-xs sm:text-sm">
           {gameState.hasKeptJoker
-            ? `${winner?.name} zavřel(a) kolo, ponechal(a) si žolíka a v příštím kole s ním začne!`
+            ? `${winner?.name} zavřel(a) kolo, ponechal(a) si ${gameState.keptJokersCount > 1 ? `${gameState.keptJokersCount} žolíky` : 'žolíka'} a v příštím kole s ${gameState.keptJokersCount > 1 ? 'nimi' : 'ním'} začne!`
             : 'Vítěz odhodil poslední kartu a vyčistil svou ruku. Ostatním hráčům se započítávají body z neodehraných karet.'}
         </p>
 

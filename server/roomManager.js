@@ -462,31 +462,44 @@ export class RoomManager {
     return this.startNewRound(room);
   }
 
-  startNewRound(room) {
+  startNewRound(roomOrCode) {
+    const room = typeof roomOrCode === 'string' ? this.getRoom(roomOrCode) : roomOrCode;
+    if (!room) return { success: false, error: 'Místnost neexistuje.' };
+
     this.clearBotTimeout(room.code);
 
-    const keptJokersCount = room.players.filter(p => !!p.keptJoker).length;
-    const deckPairs = Math.max(1, Math.ceil(room.players.length / 4));
+    let totalKeptJokers = 0;
+    room.players.forEach(p => {
+      const pKept = p.keptJokers || (p.keptJoker ? [p.keptJoker] : []);
+      totalKeptJokers += pKept.length;
+    });
+
+    // In Czech Žolíky, strictly 2 decks (108 cards: 2x 52 cards + 4 Jokers) for up to 8 players!
+    const deckPairs = room.players.length > 8 ? Math.max(1, Math.ceil(room.players.length / 6)) : 1;
     const defaultJokers = deckPairs * 4;
-    const jokersToSpawn = Math.max(0, defaultJokers - keptJokersCount);
+    const jokersToSpawn = Math.max(0, defaultJokers - totalKeptJokers);
     const deck = shuffle(createDeck({ playerCount: room.players.length, jokerCount: jokersToSpawn }));
     const cardsPerPlayer = room.settings.cardsPerPlayer || 12;
 
     // Reset player states for new round, carrying over any kept jokers
     room.players.forEach(p => {
-      if (p.keptJoker) {
-        p.hand = [{
-          id: p.keptJoker.id,
-          deckNum: p.keptJoker.deckNum || 1,
+      const pKept = p.keptJokers || (p.keptJoker ? [p.keptJoker] : []);
+      if (pKept.length > 0) {
+        p.hand = pKept.map((j, idx) => ({
+          id: j.id || `kept_joker_${p.id}_${idx}_${Date.now()}`,
+          deckNum: j.deckNum || 1,
           suit: null,
           rank: 'JOKER',
           isJoker: true,
           representedSuit: null,
           representedRank: null
-        }];
+        }));
         p.keptJoker = null;
+        p.keptJokers = null;
       } else {
         p.hand = [];
+        p.keptJoker = null;
+        p.keptJokers = null;
       }
       p.hasOpened = false;
       p.openedThisTurn = false;
@@ -755,6 +768,12 @@ export class RoomManager {
 
     if (!meldsCards || meldsCards.length === 0) {
       return { success: false, error: 'Nevybrali jste žádnou kombinaci karet.' };
+    }
+
+    // Verify each card is used at most once across all submitted melds
+    const allMeldCardIds = meldsCards.flatMap(m => m.map(c => c.id));
+    if (new Set(allMeldCardIds).size !== allMeldCardIds.length) {
+      return { success: false, error: 'Karta nemůže být použita ve více kombinacích současně.' };
     }
 
     // Verify all cards exist in player's hand
@@ -1344,16 +1363,13 @@ export class RoomManager {
 
     const discardedCard = currentPlayer.hand[cardIndex];
 
-    // Check Win Condition with Kept Joker:
-    // If player has exactly 2 cards in hand, one is Joker, and the discarded card is NOT a joker:
-    // And player has opened (or opened this turn)
+    // Check Win Condition with Kept Jokers:
+    // If player has opened (or opened this turn), and ALL remaining cards in hand after discard are Jokers (1, 2, 3, etc.):
     // And rule keepJokerOnWin is enabled (default true)
     const allowKeepJoker = room.settings.keepJokerOnWin !== false;
-    const isWinWithKeptJoker = allowKeepJoker &&
-      currentPlayer.hasOpened &&
-      currentPlayer.hand.length === 2 &&
-      !discardedCard.isJoker &&
-      currentPlayer.hand.some(c => c.isJoker);
+    const remainingCards = currentPlayer.hand.filter((_, idx) => idx !== cardIndex);
+    const hasOnlyJokersLeft = remainingCards.length > 0 && remainingCards.every(c => c.isJoker);
+    const isWinWithKeptJokers = allowKeepJoker && currentPlayer.hasOpened && hasOnlyJokersLeft;
 
     currentPlayer.hand.splice(cardIndex, 1);
     room.gameState.discardPile.push(discardedCard);
@@ -1362,16 +1378,17 @@ export class RoomManager {
 
     this.addLog(room, `${currentPlayer.name} odhodil(a) kartu a ukončil(a) tah.`);
 
-    // Check Win Condition: player's hand is empty!
+    // Check Win Condition 1: player's hand is empty (0 cards)!
     if (currentPlayer.hand.length === 0) {
-      return this.handlePlayerWin(room, currentPlayer, false);
+      return this.handlePlayerWin(room, currentPlayer, []);
     }
 
-    // Check Win Condition with Kept Joker: exactly 1 card left, which is Joker
-    if (isWinWithKeptJoker && currentPlayer.hand.length === 1 && currentPlayer.hand[0].isJoker) {
-      const keptJoker = currentPlayer.hand[0];
-      currentPlayer.keptJoker = keptJoker;
-      return this.handlePlayerWin(room, currentPlayer, true);
+    // Check Win Condition 2: all remaining cards in hand are Jokers!
+    if (isWinWithKeptJokers && currentPlayer.hand.length > 0 && currentPlayer.hand.every(c => c.isJoker)) {
+      const keptJokers = [...currentPlayer.hand];
+      currentPlayer.keptJokers = keptJokers;
+      currentPlayer.keptJoker = keptJokers[0]; // backward compatibility
+      return this.handlePlayerWin(room, currentPlayer, keptJokers);
     }
 
     // Move to next player
@@ -1494,12 +1511,15 @@ export class RoomManager {
     return { success: true, room };
   }
 
-  handlePlayerWin(room, winner, hasKeptJoker = false) {
+  handlePlayerWin(room, winner, keptJokers = []) {
     const isHandRummy = winner.openedThisTurn && room.gameState.tableMelds.length > 0;
     room.status = 'round_ended';
     room.gameState.roundWinner = winner;
     room.gameState.isHandRummy = isHandRummy;
-    room.gameState.hasKeptJoker = hasKeptJoker;
+
+    const keptCount = Array.isArray(keptJokers) ? keptJokers.length : (keptJokers ? 1 : 0);
+    room.gameState.hasKeptJoker = keptCount > 0;
+    room.gameState.keptJokersCount = keptCount;
 
     const penaltyMultiplier = isHandRummy ? 2 : 1;
 
@@ -1514,8 +1534,9 @@ export class RoomManager {
       }
     });
 
-    if (hasKeptJoker) {
-      this.addLog(room, `🏆 ${winner.name} ZAVŘEL(A) KOLO a nechává si ŽOLÍKA do dalšího kola! 🃏✨`);
+    if (keptCount > 0) {
+      const jokerText = keptCount === 1 ? 'ŽOLÍKA' : (keptCount < 5 ? `${keptCount} ŽOLÍKY` : `${keptCount} ŽOLÍKŮ`);
+      this.addLog(room, `🏆 ${winner.name} ZAVŘEL(A) KOLO a nechává si ${jokerText} do dalšího kola! 🃏✨`);
     } else if (isHandRummy) {
       this.addLog(room, `🏆 ${winner.name} ZAVŘEL(A) Z RUKY! Dvojité trestné body pro ostatní! 🌟`);
     } else {
@@ -1662,7 +1683,8 @@ export class RoomManager {
         hasOpened: p.hasOpened,
         totalScore: p.totalScore,
         roundScore: p.roundScore,
-        hasKeptJoker: !!p.keptJoker,
+        hasKeptJoker: !!p.keptJoker || (p.keptJokers && p.keptJokers.length > 0),
+        keptJokersCount: (p.keptJokers ? p.keptJokers.length : (p.keptJoker ? 1 : 0)),
         // Only disclose hand if it's the player themselves or round has ended
         hand: (isSelf || room.status === 'round_ended') ? p.hand : []
       };
@@ -1688,6 +1710,7 @@ export class RoomManager {
         } : null,
         isHandRummy: room.gameState.isHandRummy,
         hasKeptJoker: room.gameState.hasKeptJoker || false,
+        keptJokersCount: room.gameState.keptJokersCount || 0,
         drawnFromDiscardCard: (room.players[room.gameState.currentTurnPlayerIndex]?.id === playerId)
           ? room.gameState.drawnFromDiscardCard
           : null,

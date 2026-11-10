@@ -195,7 +195,7 @@ export default function Lobby({
               <h2 className="font-bold text-lg text-stone-100 flex items-center gap-2">
                 <span>Hráči v místnosti ({playerCount})</span>
                 <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-800/40 px-2 py-0.5 rounded-full">
-                  🃏 {Math.max(1, Math.ceil(playerCount / 4)) * 108} karet
+                  🃏 {playerCount > 8 ? Math.max(1, Math.ceil(playerCount / 6)) * 108 : 108} karet ({playerCount > 8 ? Math.max(1, Math.ceil(playerCount / 6)) * 2 : 2} balíčky)
                 </span>
               </h2>
             </div>

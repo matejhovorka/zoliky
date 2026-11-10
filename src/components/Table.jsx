@@ -212,19 +212,28 @@ export default function Table({
     setSelectedCardIds(newSet);
   };
 
-  // Check if player can win while keeping a Joker for next round
+  // Check if player can win while keeping Joker(s) for next round
   const canWinWithKeptJoker = useMemo(() => {
-    if (!myPlayer?.hasOpened || !myPlayer?.hand || myPlayer.hand.length !== 2) return false;
+    if (!myPlayer?.hasOpened || !myPlayer?.hand || myPlayer.hand.length < 2) return false;
     if (settings.keepJokerOnWin === false) return false;
-    const hasJoker = myPlayer.hand.some(c => c.isJoker);
     const selectedOne = selectedCards.length === 1;
-    const selectedIsNotJoker = selectedOne && !selectedCards[0].isJoker;
-    return hasJoker && selectedIsNotJoker;
+    if (!selectedOne || selectedCards[0].isJoker) return false;
+    const remainingCards = myPlayer.hand.filter(c => c.id !== selectedCards[0].id);
+    return remainingCards.length > 0 && remainingCards.every(c => c.isJoker);
   }, [myPlayer?.hasOpened, myPlayer?.hand, settings.keepJokerOnWin, selectedCards]);
 
-  const hasTwoCardsWithJoker = useMemo(() => {
-    return myPlayer?.hasOpened && myPlayer?.hand?.length === 2 && myPlayer.hand.some(c => c.isJoker);
-  }, [myPlayer?.hasOpened, myPlayer?.hand]);
+  const keptJokersCountToKeep = useMemo(() => {
+    if (!canWinWithKeptJoker || selectedCards.length !== 1) return 0;
+    return (myPlayer?.hand || []).filter(c => c.id !== selectedCards[0].id && c.isJoker).length;
+  }, [canWinWithKeptJoker, myPlayer?.hand, selectedCards]);
+
+  const hasOnlyJokersAndOneNonJoker = useMemo(() => {
+    if (!myPlayer?.hasOpened || !myPlayer?.hand || myPlayer.hand.length < 2) return false;
+    if (settings.keepJokerOnWin === false) return false;
+    const jokers = myPlayer.hand.filter(c => c.isJoker);
+    const nonJokers = myPlayer.hand.filter(c => !c.isJoker);
+    return jokers.length > 0 && nonJokers.length === 1;
+  }, [myPlayer?.hasOpened, myPlayer?.hand, settings.keepJokerOnWin]);
 
   // Actions
   const handleDraw = (source) => {
@@ -783,12 +792,12 @@ export default function Table({
             <span className="font-semibold">{selectionAnalysis.text}</span>
             {canWinWithKeptJoker && (
               <span className="text-amber-300 font-extrabold animate-pulse">
-                ★ Zavření se žolíkem do dalšího kola!
+                ★ Zavření se {keptJokersCountToKeep > 1 ? `${keptJokersCountToKeep} žolíky` : 'žolíkem'} do dalšího kola!
               </span>
             )}
-            {!canWinWithKeptJoker && hasTwoCardsWithJoker && isMyTurn && turnPhase === 'play_or_discard' && (
+            {!canWinWithKeptJoker && hasOnlyJokersAndOneNonJoker && isMyTurn && turnPhase === 'play_or_discard' && (
               <span className="text-amber-300/90 text-[11px] hidden sm:inline">
-                (Označte běžnou kartu pro zavření s ponecháním žolíka)
+                (Označte běžnou kartu pro zavření a ponechání {(myPlayer?.hand || []).filter(c => c.isJoker).length > 1 ? `${(myPlayer?.hand || []).filter(c => c.isJoker).length} žolíků` : 'žolíka'})
               </span>
             )}
             {selectedCards.length > 0 && (
@@ -831,7 +840,9 @@ export default function Table({
             >
               <ArrowDownCircle className="w-4 h-4" />
               <span>
-                {canWinWithKeptJoker ? 'Zavřít a nechat si žolíka! 🃏' : 'Zahodit kartu'}
+                {canWinWithKeptJoker
+                  ? `Zavřít a nechat si ${keptJokersCountToKeep > 1 ? `${keptJokersCountToKeep} žolíky` : 'žolíka'}! 🃏`
+                  : 'Zahodit kartu'}
               </span>
             </button>
           </div>

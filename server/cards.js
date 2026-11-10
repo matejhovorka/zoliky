@@ -63,7 +63,10 @@ export function createDeck(options = 4) {
     jokerCount = options.jokerCount !== undefined ? options.jokerCount : null;
   }
 
-  const deckPairs = Math.max(1, Math.ceil(playerCount / 4));
+  // In Czech Žolíky, a standard game is played with strictly 2 decks (108 cards: 2x 52 cards + 4 Jokers).
+  // 108 cards easily supports up to 6-8 players (e.g. 6 players = 72 cards dealt, 36 in talon; discard reshuffles).
+  // Therefore, deckPairs is strictly 1 for up to 8 players, guaranteeing exactly 2 copies of each card (e.g. exactly 2x King of Spades) and 4 Jokers!
+  const deckPairs = playerCount > 8 ? Math.max(1, Math.ceil(playerCount / 6)) : 1;
   const totalDecks = deckPairs * 2;
   const defaultJokers = deckPairs * 4;
   const finalJokerCount = jokerCount !== null ? Math.max(0, jokerCount) : defaultJokers;
